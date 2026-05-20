@@ -1,9 +1,13 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import fetch from "node-fetch";
+import OpenAI from "openai";
 
 dotenv.config();
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 const app = express();
 app.use(cors());
@@ -28,47 +32,28 @@ app.post("/generate", async (req, res) => {
   }
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful assistant that writes single, concise LinkedIn comments. Return ONLY the comment text without any options, labels, or formatting."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.7
-      })
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant that writes single, concise LinkedIn comments. Return ONLY the comment text without any options, labels, or formatting."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.7
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(500).json({ error: `API error: ${response.status}` });
-    }
-
-    const data = await response.json();
+    let comment = completion.choices[0].message.content.trim();
     
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      return res.status(500).json({ error: "Invalid API response" });
-    }
-
-    let comment = data.choices[0].message.content.trim();
-    
-    // Clean up the comment - remove any option labels or formatting
     comment = comment.replace(/\*\*Option \d+.*?\*\*/gi, '');
     comment = comment.replace(/^>\s*/gm, '');
     comment = comment.replace(/\*\*/g, '');
-    comment = comment.split('\n')[0]; // Take only first line if multiple
+    comment = comment.split('\n')[0];
     comment = comment.trim();
 
     res.json({ comment });
