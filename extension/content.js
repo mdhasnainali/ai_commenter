@@ -210,23 +210,46 @@ function positionButton(commentBox, button) {
   console.log("Button positioned at:", button.style.top, button.style.right);
 }
 
+// Function to detect current platform
+function detectPlatform() {
+  const hostname = window.location.hostname;
+  if (hostname.includes("linkedin.com")) return "linkedin";
+  if (hostname.includes("x.com") || hostname.includes("twitter.com")) return "twitter";
+  return "unknown";
+}
+
 // Function to find the post element
 function findPostElement(element) {
   console.log("Finding post element from:", element);
   
-  // Try multiple selectors for different platforms
-  const selectors = [
-    ".feed-shared-update-v2",           // LinkedIn main feed post
-    ".feed-shared-update-v2__content",  // LinkedIn post content
-    "article",                           // Generic article
-    "[role='article']",                  // ARIA article
-    ".post",                             // Generic post
-    "[data-testid*='post']",            // Facebook/Twitter style
-    ".story",                            // Story container
-    ".feed-shared-update",               // LinkedIn variant
-    ".occludable-update",                // LinkedIn update container
-    "[data-urn]",                        // LinkedIn URN elements
-  ];
+  const platform = detectPlatform();
+  console.log("Detected platform:", platform);
+  
+  let selectors = [];
+  
+  if (platform === "twitter") {
+    selectors = [
+      "[data-testid='tweet']",           // X main tweet
+      "[data-testid='tweetDetail']",     // X tweet detail
+      "article[role='article']",         // X article
+      "[data-testid*='tweet']",          // X variants
+      ".r-1habvwh4",                      // X CSS class
+      "[data-cid]",                      // X tweet container
+    ];
+  } else {
+    selectors = [
+      ".feed-shared-update-v2",           // LinkedIn main feed post
+      ".feed-shared-update-v2__content",  // LinkedIn post content
+      "article",                           // Generic article
+      "[role='article']",                  // ARIA article
+      ".post",                             // Generic post
+      "[data-testid*='post']",            // Facebook/Twitter style
+      ".story",                            // Story container
+      ".feed-shared-update",               // LinkedIn variant
+      ".occludable-update",                // LinkedIn update container
+      "[data-urn]",                        // LinkedIn URN elements
+    ];
+  }
   
   for (const selector of selectors) {
     const post = element.closest(selector);
@@ -263,13 +286,23 @@ function findPostElement(element) {
 function isCommentInput(element) {
   if (!element) return false;
   
+  const platform = detectPlatform();
+  
   // Check various input types
   const isTextarea = element.tagName === 'TEXTAREA';
   const isTextInput = element.tagName === 'INPUT' && element.type === 'text';
   const isContentEditable = element.contentEditable === 'true' || element.getAttribute('contenteditable') === 'true';
   const isDivInput = element.tagName === 'DIV' && (element.role === 'textbox' || element.getAttribute('role') === 'textbox');
   
-  return isTextarea || isTextInput || isContentEditable || isDivInput;
+  // X (Twitter) specific check - check for X's compose box
+  let isXInput = false;
+  if (platform === 'twitter') {
+    const isXTextarea = element.tagName === 'TEXTAREA' && element.getAttribute('aria-label')?.toLowerCase().includes('tweet');
+    const isXDivInput = element.className?.includes('public-DraftEditor') || element.getAttribute('data-testid')?.includes('tweet');
+    isXInput = isXTextarea || isXDivInput;
+  }
+  
+  return isTextarea || isTextInput || isContentEditable || isDivInput || isXInput;
 }
 
 // Function to show button for comment box
@@ -453,26 +486,41 @@ function getPostText(postElement) {
   
   console.log("Extracting text from post element:", postElement);
   
+  const platform = detectPlatform();
+  
   // First, try to exclude comment sections and buttons
   const clone = postElement.cloneNode(true);
   
   // Remove comment sections, buttons, and other noise
   const elementsToRemove = clone.querySelectorAll(
-    '.comments-comment-box, .comments-comment-list, .comments-comment-item, button, .social-details-social-counts, [role="button"], input, textarea, nav, header, footer'
+    '.comments-comment-box, .comments-comment-list, .comments-comment-item, button, .social-details-social-counts, [role="button"], input, textarea, nav, header, footer, [data-testid="reply"], [data-testid="retweet"], [data-testid="like"], [data-testid="share"], [role="group"], [aria-label*="reply"], [aria-label*="retweet"], [aria-label*="like"], [aria-label*="share"]'
   );
   elementsToRemove.forEach(el => el.remove());
   
-  // Try specific selectors first
-  const selectors = [
-    ".feed-shared-update-v2__description",   // LinkedIn main text
-    ".feed-shared-text",                     // LinkedIn alt
-    ".break-words",                          // LinkedIn
-    "[data-testid*='post-text']",           // Facebook/Twitter
-    ".post-content",                         // Generic
-    ".update-components-text",               // LinkedIn update
-    ".feed-shared-inline-show-more-text",   // LinkedIn show more text
-    "[dir='ltr']",                           // LinkedIn text direction
-  ];
+  let selectors = [];
+  
+  if (platform === "twitter") {
+    selectors = [
+      "[data-testid='tweetText']",          // X tweet text
+      ".r-1habvwh4",                        // X text container
+      "div[lang]",                          // X multilingual text
+      "[data-testid='tweet'] div",          // X generic
+      "article div[lang]",                  // X article text
+      ".r-bnw5im",                          // X text class
+      "span.css-901oao",                    // X span text
+    ];
+  } else {
+    selectors = [
+      ".feed-shared-update-v2__description",   // LinkedIn main text
+      ".feed-shared-text",                     // LinkedIn alt
+      ".break-words",                          // LinkedIn
+      "[data-testid*='post-text']",           // Facebook/Twitter
+      ".post-content",                         // Generic
+      ".update-components-text",               // LinkedIn update
+      ".feed-shared-inline-show-more-text",   // LinkedIn show more text
+      "[dir='ltr']",                           // LinkedIn text direction
+    ];
+  }
   
   for (const selector of selectors) {
     const element = clone.querySelector(selector);
@@ -529,7 +577,7 @@ async function handleAIButtonClick(type) {
   console.log("Post text:", postText);
 
   if (!postText || postText.length < 10) {
-    alert("No text found in this post. Make sure you're clicking on a comment box within a LinkedIn post.");
+    alert("No text found in this post. Make sure you're clicking on a comment box within a post.");
     return;
   }
 
