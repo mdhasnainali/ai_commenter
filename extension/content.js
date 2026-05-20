@@ -1,9 +1,20 @@
-const BACKEND_URL = "http://localhost:3000/generate";
 let currentCommentBox = null;
 let currentPost = null;
 let aiButton = null;
 
-console.log("AI Comment Extension loaded");
+const DEFAULT_BACKEND_URL = "http://localhost:34567/generate";
+const DEFAULT_API_KEY = "your-very-long-random-secret-key-change-this";
+
+async function getSettings() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get({
+      backendUrl: DEFAULT_BACKEND_URL,
+      apiKey: DEFAULT_API_KEY
+    }, (items) => {
+      resolve(items);
+    });
+  });
+}
 
 // Function to create button for a comment box
 function createAIButton() {
@@ -80,7 +91,6 @@ function createAIButton() {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    console.log("Professional button clicked!");
     menu.style.display = "none";
     menu.style.visibility = "hidden";
     handleAIButtonClick("professional");
@@ -111,7 +121,6 @@ function createAIButton() {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    console.log("Friendly button clicked!");
     menu.style.display = "none";
     menu.style.visibility = "hidden";
     handleAIButtonClick("friendly");
@@ -121,6 +130,38 @@ function createAIButton() {
 
   menu.appendChild(professionalBtn);
   menu.appendChild(friendlyBtn);
+
+  const collaborationBtn = document.createElement("button");
+  collaborationBtn.innerHTML = "Collaboration";
+  collaborationBtn.style.cssText = `
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    background: white;
+    border: none;
+    border-top: 1px solid #f0f0f0;
+    text-align: left;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    transition: background 0.2s;
+  `;
+  collaborationBtn.onmouseover = () => collaborationBtn.style.background = "#f0f4f8";
+  collaborationBtn.onmouseout = () => collaborationBtn.style.background = "white";
+  
+  const handleCollaborationClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    menu.style.display = "none";
+    menu.style.visibility = "hidden";
+    handleAIButtonClick("collaboration");
+  };
+  collaborationBtn.onclick = handleCollaborationClick;
+  collaborationBtn.onmousedown = handleCollaborationClick;
+  
+  menu.appendChild(collaborationBtn);
 
   let hoverTimeout;
   let menuVisible = false;
@@ -184,19 +225,12 @@ function createAIButton() {
 
 // Position button relative to comment box
 function positionButton(commentBox, button) {
-  if (!commentBox || !button) {
-    console.log("Cannot position button - missing element");
-    return;
-  }
+  if (!commentBox || !button) return;
   
   const rect = commentBox.getBoundingClientRect();
   const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
   const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
   
-  console.log("Comment box rect:", rect);
-  console.log("Scroll position:", scrollTop, scrollLeft);
-  
-  // Position button at top-right of comment box, slightly above it
   const topPosition = rect.top + scrollTop - 40;
   const rightPosition = document.documentElement.clientWidth - rect.right - scrollLeft + 10;
   
@@ -206,8 +240,6 @@ function positionButton(commentBox, button) {
   button.style.left = "auto";
   button.style.zIndex = "99999";
   button.style.display = "block";
-  
-  console.log("Button positioned at:", button.style.top, button.style.right);
 }
 
 // Function to detect current platform
@@ -220,21 +252,41 @@ function detectPlatform() {
 
 // Function to find the post element
 function findPostElement(element) {
-  console.log("Finding post element from:", element);
-  
   const platform = detectPlatform();
-  console.log("Detected platform:", platform);
+  
+  // For X (Twitter)
+  if (platform === "twitter") {
+    // Check if inside a modal/dialog
+    const modal = element.closest('[role="dialog"]');
+    if (modal) {
+      const tweetInModal = modal.querySelector('article[data-testid="tweet"]');
+      if (tweetInModal) return tweetInModal;
+    }
+    
+    // Try to find from the tweetText element in the main page
+    const tweetTextEl = element.closest('[data-testid="tweetText"]') || 
+                        element.querySelector('[data-testid="tweetText"]');
+    if (tweetTextEl) {
+      const article = tweetTextEl.closest('article[data-testid="tweet"]') ||
+                      tweetTextEl.closest('article');
+      if (article) return article;
+    }
+    
+    // Try to find article directly
+    const article = element.closest('article[data-testid="tweet"]') ||
+                    element.closest('article[role="article"]');
+    if (article) return article;
+  }
   
   let selectors = [];
   
   if (platform === "twitter") {
     selectors = [
-      "[data-testid='tweet']",           // X main tweet
-      "[data-testid='tweetDetail']",     // X tweet detail
-      "article[role='article']",         // X article
-      "[data-testid*='tweet']",          // X variants
-      ".r-1habvwh4",                      // X CSS class
-      "[data-cid]",                      // X tweet container
+      "article[data-testid='tweet']",
+      "article[data-testid='tweetDetail']",
+      "article[role='article']",
+      "[data-testid='cellInner']",
+      "article",
     ];
   } else {
     selectors = [
@@ -253,13 +305,8 @@ function findPostElement(element) {
   
   for (const selector of selectors) {
     const post = element.closest(selector);
-    if (post) {
-      console.log("Found post with selector:", selector, post);
-      return post;
-    }
+    if (post) return post;
   }
-  
-  console.log("No post found with selectors, trying parent traversal");
   
   // Fallback: go up several levels and find a substantial container
   let parent = element;
@@ -267,18 +314,13 @@ function findPostElement(element) {
     parent = parent.parentElement;
     if (!parent) break;
     
-    // Check if this parent has substantial content and looks like a post
     const textContent = parent.innerText || parent.textContent || "";
     const hasEnoughContent = textContent.length > 100;
-    const hasPostLikeStructure = parent.querySelector('.feed-shared-social-action-bar, .social-details-social-counts, [aria-label*="Like"], [aria-label*="Comment"]');
+    const hasPostLikeStructure = parent.querySelector('.feed-shared-social-action-bar, .social-details-social-counts, [aria-label*="Like"], [aria-label*="Comment"], [data-testid="reply"], [data-testid="tweet"], [role="group"][aria-label*="reply"], [data-testid="cellInner"]');
     
-    if (hasEnoughContent || hasPostLikeStructure) {
-      console.log("Found parent with content at level", i, parent);
-      return parent;
-    }
+    if (hasEnoughContent || hasPostLikeStructure) return parent;
   }
   
-  console.log("Returning null - no suitable post container found");
   return null;
 }
 
@@ -294,12 +336,23 @@ function isCommentInput(element) {
   const isContentEditable = element.contentEditable === 'true' || element.getAttribute('contenteditable') === 'true';
   const isDivInput = element.tagName === 'DIV' && (element.role === 'textbox' || element.getAttribute('role') === 'textbox');
   
-  // X (Twitter) specific check - check for X's compose box
+  // X (Twitter) specific check - check for X's compose box (2026)
   let isXInput = false;
   if (platform === 'twitter') {
-    const isXTextarea = element.tagName === 'TEXTAREA' && element.getAttribute('aria-label')?.toLowerCase().includes('tweet');
-    const isXDivInput = element.className?.includes('public-DraftEditor') || element.getAttribute('data-testid')?.includes('tweet');
-    isXInput = isXTextarea || isXDivInput;
+    const isXTextarea = element.tagName === 'TEXTAREA' && 
+      (element.getAttribute('aria-label')?.toLowerCase().includes('tweet') || 
+       element.getAttribute('aria-label')?.toLowerCase().includes('post') ||
+       element.getAttribute('aria-label')?.toLowerCase().includes('reply'));
+    const isDraftEditor = element.getAttribute('contenteditable') === 'true' && 
+      (element.className?.includes('public-DraftStyleDefault') ||
+       element.getAttribute('data-offset-key')?.includes('-'));
+    const isXDivInput = element.getAttribute('contenteditable') === 'true' && 
+      (element.getAttribute('role') === 'textbox' || 
+       element.className?.includes('editor') ||
+       element.getAttribute('data-testid')?.includes('tweet'));
+    const isXInputDiv = element.tagName === 'INPUT' && 
+      element.getAttribute('aria-label')?.toLowerCase().includes('tweet');
+    isXInput = isXTextarea || isDraftEditor || isXDivInput || isXInputDiv;
   }
   
   return isTextarea || isTextInput || isContentEditable || isDivInput || isXInput;
@@ -307,70 +360,32 @@ function isCommentInput(element) {
 
 // Function to show button for comment box
 function showButtonForCommentBox(target) {
-  console.log("=== showButtonForCommentBox called ===");
-  console.log("Target:", target);
-  console.log("Current aiButton exists:", !!aiButton);
-  console.log("Current aiButton in DOM:", aiButton ? document.body.contains(aiButton) : false);
-  
   currentCommentBox = target;
   currentPost = findPostElement(target);
   
-  console.log("Current post found:", !!currentPost);
-  console.log("Current comment box set:", !!currentCommentBox);
-  
-  // If button already exists and is in DOM, just reposition it
   if (aiButton && document.body.contains(aiButton)) {
-    console.log("Button already exists, just repositioning");
     positionButton(currentCommentBox, aiButton);
-    console.log("Button repositioned successfully");
-    console.log("=== showButtonForCommentBox completed (reused button) ===");
     return;
   }
   
-  // Create new button only if it doesn't exist
   try {
     aiButton = createAIButton();
-    console.log("New button created:", !!aiButton);
-    
     document.body.appendChild(aiButton);
-    console.log("Button appended to body");
     
-    // Position button immediately
     if (aiButton && currentCommentBox && document.body.contains(aiButton)) {
       positionButton(currentCommentBox, aiButton);
-      console.log("Button positioned successfully");
-      console.log("Button style - top:", aiButton.style.top, "right:", aiButton.style.right, "display:", aiButton.style.display);
-    } else {
-      console.log("ERROR: Button or comment box missing during positioning");
-      console.log("aiButton exists:", !!aiButton);
-      console.log("currentCommentBox exists:", !!currentCommentBox);
-      console.log("Button in DOM:", aiButton ? document.body.contains(aiButton) : false);
     }
   } catch (e) {
-    console.error("Error creating/showing button:", e);
+    console.error("Error creating button:", e);
   }
-  
-  console.log("=== showButtonForCommentBox completed ===");
 }
 
 // Listen for focus on any input element
 document.addEventListener("focus", (e) => {
   const target = e.target;
   
-  console.log("Focus event on:", target.tagName, target);
-  
-  // Check if it's any kind of text input
   if (isCommentInput(target)) {
-    console.log("Comment input focused!");
-    
-    // If clicking on the SAME comment box that already has the button, do nothing
-    if (currentCommentBox === target && aiButton && aiButton.parentNode) {
-      console.log("Same comment box focused, keeping button visible");
-      return;
-    }
-    
-    // Show button for this comment box (will reuse if exists)
-    console.log("Showing button for focused input");
+    if (currentCommentBox === target && aiButton && aiButton.parentNode) return;
     showButtonForCommentBox(target);
   }
 }, true);
@@ -379,50 +394,22 @@ document.addEventListener("focus", (e) => {
 document.addEventListener("input", (e) => {
   const target = e.target;
   
-  // Only show button if it's a comment input and button doesn't exist
   if (isCommentInput(target) && (!aiButton || !aiButton.parentNode)) {
-    console.log("Input event on comment box, showing button");
     showButtonForCommentBox(target);
   }
 }, true);
 
-// Also listen for clicks AND mousedown (more reliable)
+// Also listen for clicks
 document.addEventListener("click", (e) => {
   const target = e.target;
   
-  console.log("=== CLICK EVENT ===");
-  console.log("Target:", target.tagName, target.className, target);
-  console.log("Is comment input?", isCommentInput(target));
+  if (target.closest(".ai-comment-btn-container") || target.closest(".ai-comment-menu")) return;
+  if (target.closest(".ai-result")) return;
   
-  // Check if clicking on our button or menu
-  if (target.closest(".ai-comment-btn-container") || target.closest(".ai-comment-menu")) {
-    console.log("Clicked on AI button/menu, ignoring");
-    return;
-  }
-  
-  // Check if clicking on AI result container
-  if (target.closest(".ai-result")) {
-    console.log("Clicked on AI result, ignoring");
-    return;
-  }
-  
-  // If clicking on text input
   if (isCommentInput(target)) {
-    console.log("Comment input clicked!");
-    
-    // If clicking on the SAME comment box that already has the button, do nothing
-    if (currentCommentBox === target && aiButton && aiButton.parentNode) {
-      console.log("Same comment box clicked, keeping button visible");
-      return;
-    }
-    
-    // Show button for this comment box (will reuse if exists)
-    console.log("Showing button for comment box");
+    if (currentCommentBox === target && aiButton && aiButton.parentNode) return;
     showButtonForCommentBox(target);
-  } 
-  // If clicking outside, hide button
-  else {
-    console.log("Clicked outside, hiding button");
+  } else {
     if (aiButton && aiButton.parentNode) {
       aiButton.remove();
       aiButton = null;
@@ -436,15 +423,8 @@ document.addEventListener("click", (e) => {
 document.addEventListener("mousedown", (e) => {
   const target = e.target;
   
-  // If clicking on the SAME comment box that already has the button, do nothing
-  if (isCommentInput(target) && currentCommentBox === target && aiButton && aiButton.parentNode) {
-    console.log("Same comment box mousedown, keeping button visible");
-    return;
-  }
-  
-  // Only handle if it's a comment input and button doesn't exist
+  if (isCommentInput(target) && currentCommentBox === target && aiButton && aiButton.parentNode) return;
   if (isCommentInput(target) && (!aiButton || !aiButton.parentNode)) {
-    console.log("Mousedown on comment input, showing button");
     showButtonForCommentBox(target);
   }
 }, true);
@@ -484,11 +464,7 @@ function detectLanguage(text) {
 function getPostText(postElement) {
   if (!postElement) return "";
   
-  console.log("Extracting text from post element:", postElement);
-  
   const platform = detectPlatform();
-  
-  // First, try to exclude comment sections and buttons
   const clone = postElement.cloneNode(true);
   
   // Remove comment sections, buttons, and other noise
@@ -501,13 +477,12 @@ function getPostText(postElement) {
   
   if (platform === "twitter") {
     selectors = [
-      "[data-testid='tweetText']",          // X tweet text
-      ".r-1habvwh4",                        // X text container
-      "div[lang]",                          // X multilingual text
-      "[data-testid='tweet'] div",          // X generic
-      "article div[lang]",                  // X article text
-      ".r-bnw5im",                          // X text class
-      "span.css-901oao",                    // X span text
+      "[role='dialog'] article [data-testid='tweetText']", // X modal
+      "article [data-testid='tweetText']",                // X text in article
+      "article div[data-testid='tweetText']",             // X tweet text
+      "[data-testid='tweetText']",                        // X tweet text anywhere
+      "article div[dir='auto']",                           // X text with dir
+      "article div[lang]",                                 // X multilingual text
     ];
   } else {
     selectors = [
@@ -525,65 +500,43 @@ function getPostText(postElement) {
   for (const selector of selectors) {
     const element = clone.querySelector(selector);
     if (element && element.innerText.trim().length > 20) {
-      const text = element.innerText.trim();
-      console.log("Found text with selector:", selector, "Text:", text.substring(0, 100));
-      return text;
+      return element.innerText.trim();
     }
   }
   
-  // Get all text but try to filter out UI elements
   let allText = clone.innerText || clone.textContent || "";
-  allText = allText.trim();
+  allText = allText.trim().replace(/\s+/g, ' ');
   
-  // Clean up the text - remove multiple spaces and newlines
-  allText = allText.replace(/\s+/g, ' ').trim();
+  if (allText.length > 20) return allText;
   
-  // If we got some text, use it
-  if (allText.length > 20) {
-    console.log("Using all text from post:", allText.substring(0, 100));
-    return allText;
-  }
-  
-  // Last resort: get text from original element
   const originalText = postElement.innerText || postElement.textContent || "";
-  const cleanedOriginal = originalText.replace(/\s+/g, ' ').trim();
-  console.log("Using original element text:", cleanedOriginal.substring(0, 100));
-  return cleanedOriginal;
+  return originalText.replace(/\s+/g, ' ').trim();
 }
 
 // Button click handler
 async function handleAIButtonClick(type) {
-  console.log("AI Button clicked, type:", type);
-  
-  // Hide the button immediately when option is selected
   if (aiButton && aiButton.parentNode) {
     aiButton.remove();
     aiButton = null;
   }
   
-  // Try to find post again if not found initially
   if (!currentPost && currentCommentBox) {
-    console.log("Retrying post detection...");
     currentPost = findPostElement(currentCommentBox);
   }
   
   if (!currentPost) {
-    console.error("Still no post found after retry");
     alert("No post found. Please click on a comment box within a post.");
     return;
   }
 
   const postText = getPostText(currentPost);
-  console.log("Post text:", postText);
 
   if (!postText || postText.length < 10) {
     alert("No text found in this post. Make sure you're clicking on a comment box within a post.");
     return;
   }
 
-  // Detect language from post text
   const language = detectLanguage(postText);
-  console.log("Detected language:", language);
 
   showLoading(currentPost, type);
 
@@ -591,13 +544,9 @@ async function handleAIButtonClick(type) {
     const comment = await fetchComment(postText, type, language);
     showComment(currentPost, comment, type);
   } catch (err) {
-    console.error(err);
-    
-    // Remove loader
     const oldLoader = currentPost.querySelector(".ai-loader");
     if (oldLoader) oldLoader.remove();
     
-    // Show error message
     const errorDiv = document.createElement("div");
     errorDiv.className = "ai-loader";
     errorDiv.style.borderLeft = "4px solid #d32f2f";
@@ -608,29 +557,25 @@ async function handleAIButtonClick(type) {
 }
 
 async function fetchComment(postText, type, language = "en") {
-  try {
-    const res = await fetch(BACKEND_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ postText, type, language })
-    });
+  const platform = detectPlatform();
+  const settings = await getSettings();
+  
+  const res = await fetch(settings.backendUrl, {
+    method: "POST",
+    headers: { 
+      "Content-Type": "application/json",
+      "x-api-key": settings.apiKey
+    },
+    body: JSON.stringify({ postText, type, language, platform })
+  });
 
-    if (!res.ok) {
-      throw new Error(`Server error: ${res.status}`);
-    }
-
-    const data = await res.json();
-    return data.comment;
-  } catch (error) {
-    console.error("Fetch error:", error);
-    throw new Error("Not possible to generate now");
-  }
+  if (!res.ok) throw new Error(`Server error: ${res.status}`);
+  
+  const data = await res.json();
+  return data.comment;
 }
 
 function showLoading(post, type) {
-  // Remove old loader if exists
   const oldLoader = post.querySelector(".ai-loader");
   if (oldLoader) oldLoader.remove();
   
@@ -641,6 +586,8 @@ function showLoading(post, type) {
     label = "Professional";
   } else if (type === "friendly") {
     label = "Friendly";
+  } else if (type === "collaboration") {
+    label = "Collaboration";
   } else {
     label = "AI";
   }
@@ -675,6 +622,9 @@ function showComment(post, comment, type) {
   } else if (type === "friendly") {
     label = "Friendly";
     color = "#057642";
+  } else if (type === "collaboration") {
+    label = "Collaboration";
+    color = "#8b5cf6";
   } else {
     label = "AI";
     color = "#0a66c2";
@@ -721,18 +671,13 @@ function showComment(post, comment, type) {
   regenerateBtn.onclick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("Regenerate button clicked, type:", type);
-    // Remove current result and regenerate
     container.remove();
     showLoading(post, type);
     const postText = getPostText(post);
     const language = detectLanguage(postText);
-    console.log("Fetching new comment with type:", type, "language:", language, "postText length:", postText.length);
     fetchComment(postText, type, language).then(newComment => {
-      console.log("New comment received:", newComment);
       showComment(post, newComment, type);
     }).catch(err => {
-      console.error("Error regenerating:", err);
       const oldLoader = post.querySelector(".ai-loader");
       if (oldLoader) oldLoader.remove();
     });
@@ -816,31 +761,26 @@ function showComment(post, comment, type) {
 
 // Remove the interval since we're using click detection now
 
-// Also observe for dynamically added comment boxes
+// Observe for dynamically added comment boxes
 const observer = new MutationObserver((mutations) => {
-  // Only check if we don't have a button showing
   if (aiButton && aiButton.parentNode) return;
   
   for (const mutation of mutations) {
     for (const node of mutation.addedNodes) {
-      if (node.nodeType === 1) { // Element node
-        // Check if the added node or its children contain comment inputs
+      if (node.nodeType === 1) {
         const commentInputs = node.querySelectorAll ? 
           node.querySelectorAll('textarea, input[type="text"], [contenteditable="true"], [role="textbox"]') : 
           [];
         
         if (commentInputs.length > 0) {
-          console.log("New comment inputs detected:", commentInputs.length);
+          showButtonForCommentBox(commentInputs[0]);
         }
       }
     }
   }
 });
 
-// Start observing
 observer.observe(document.body, {
   childList: true,
   subtree: true
 });
-
-console.log("AI Comment Extension fully loaded and observing");
