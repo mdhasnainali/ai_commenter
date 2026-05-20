@@ -29,33 +29,33 @@ app.post("/generate", checkAuth, async (req, res) => {
   const { postText, type, language, platform = "linkedin" } = req.body;
 
   let prompt;
-  let maxTokens = 100;
-  
+  let maxTokens = 60;
+
   let languageInstruction = "Respond in the same language as the post provided.";
   if (language === "bn") {
-    languageInstruction = "Write the comment in Bengali language.";
+    languageInstruction = "Write the comment entirely in Bengali (বাংলা) using natural, conversational phrasing. Keep it to ONE short sentence.";
   } else if (language === "en") {
-    languageInstruction = "Write the comment in English language.";
+    languageInstruction = "Write the comment entirely in English. Keep it to ONE short sentence.";
   }
 
   const isLinkedIn = platform === "linkedin";
 
   if (type === "professional") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE insightful professional comment (1-2 sentences). 
-    Write like a real person having a conversation—use a natural, slightly informal professional tone. 
-    Reference a specific point from the post. Avoid "AI-speak," "I love to connect," or starting with "Great post!" 
+    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE very concise professional comment (MAX 15-20 words). 
+    Focus on the core insight or news. 
+    Contribute one brief perspective. No fluff. 
     ${languageInstruction} 
     Return ONLY the comment text:\n\n${postText}`;
   } else if (type === "friendly") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE warm, human comment (1-2 sentences). 
-    Keep it casual and supportive, like you're replying to a friend. 
-    Mention something specific from the post. No generic praise or robotic enthusiasm. 
+    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE short, human comment (MAX 15 words). 
+    Respond to the story with a quick, supportive observation. 
+    Keep it very punchy. 
     ${languageInstruction} 
     Return ONLY the comment text:\n\n${postText}`;
   } else if (type === "collaboration") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE professional comment (1-2 sentences) showing genuine interest. 
-    Instead of saying "I'm interested in collaborating," mention a specific detail and suggest it would be cool to chat more about it sometime. 
-    Make it sound low-pressure and authentic. 
+    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE concise professional comment (MAX 20 words). 
+    Acknowledge a point and suggest a chat. 
+    Keep it brief and authentic. 
     ${languageInstruction} 
     Return ONLY the comment text:\n\n${postText}`;
   }
@@ -73,7 +73,9 @@ app.post("/generate", checkAuth, async (req, res) => {
           content: `You are a savvy professional who writes natural, conversational comments. 
           Avoid all AI cliches (e.g., "delve," "unlock," "dive in," "I'm excited to"). 
           Don't be overly formal or perfectly polished. Use contractions (it's, don't). 
-          Respond like a busy but thoughtful human would. 
+          Focus your comment on the topic, data, or news shared in the post rather than praising the author's achievement. 
+          Respond like a busy but thoughtful human contributing to a discussion. 
+          Keep comments extremely concise—aim for ONE sentence.
           Never sound like a bot or a customer service agent. 
           Return ONLY the comment text.`
         },
