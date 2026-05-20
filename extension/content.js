@@ -452,8 +452,12 @@ function detectLanguage(text) {
   const bengaliMatches = text.match(bengaliRegex) || [];
   const englishMatches = text.match(englishRegex) || [];
   
-  // If Bengali characters are more than 30% of the text, consider it Bengali
-  if (bengaliMatches.length > text.length * 0.3) {
+  const totalAlpha = bengaliMatches.length + englishMatches.length;
+  if (totalAlpha === 0) return "en";
+
+  // If Bengali characters exist and are more than 10% of total alpha characters,
+  // or if there are more Bengali characters than English, consider it Bengali
+  if (bengaliMatches.length > totalAlpha * 0.1 || bengaliMatches.length > englishMatches.length) {
     return "bn";
   }
   
