@@ -563,22 +563,30 @@ async function handleAIButtonClick(type) {
 async function fetchComment(postText, type, language = "en") {
   const platform = detectPlatform();
   const settings = await getSettings();
-  
-  const res = await fetch(settings.backendUrl, {
-    method: "POST",
-    headers: { 
-      "Content-Type": "application/json",
-      "x-api-key": settings.apiKey
-    },
-    body: JSON.stringify({ postText, type, language, platform })
+
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      action: "fetchComment",
+      url: settings.backendUrl,
+      options: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": settings.apiKey
+        },
+        body: JSON.stringify({ postText, type, language, platform })
+      }
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (response.success) {
+        resolve(response.data.comment);
+      } else {
+        reject(new Error(response.error));
+      }
+    });
   });
-
-  if (!res.ok) throw new Error(`Server error: ${res.status}`);
-  
-  const data = await res.json();
-  return data.comment;
 }
-
 function showLoading(post, type) {
   const oldLoader = post.querySelector(".ai-loader");
   if (oldLoader) oldLoader.remove();

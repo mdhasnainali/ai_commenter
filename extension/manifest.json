@@ -11,8 +11,13 @@
   "host_permissions": [
     "https://www.linkedin.com/*",
     "https://www.x.com/*",
-    "https://x.com/*"
+    "https://x.com/*",
+    "http://*/*",
+    "https://*/*"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "icons": {
     "16": "icon.png",
     "48": "icon.png",
