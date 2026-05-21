@@ -5,6 +5,21 @@ let aiButton = null;
 const DEFAULT_BACKEND_URL = "http://localhost:34567/generate";
 const DEFAULT_API_KEY = "your-very-long-random-secret-key-change-this";
 
+const COMMENT_STYLES = [
+  { id: "professional", label: "Professional", color: "#0a66c2" },
+  { id: "friendly", label: "Friendly", color: "#057642" },
+  { id: "collaboration", label: "Collaboration", color: "#8b5cf6" },
+  { id: "insightful", label: "Insightful", color: "#e67e22" },
+  { id: "curious", label: "Curious", color: "#16a085" },
+  { id: "supportive", label: "Supportive", color: "#e91e63" },
+  { id: "constructive", label: "Constructive", color: "#2c3e50" },
+  { id: "enthusiastic", label: "Enthusiastic", color: "#f39c12" },
+  { id: "witty", label: "Witty", color: "#9b59b6" },
+  { id: "empathetic", label: "Empathetic", color: "#1abc9c" },
+  { id: "thoughtful", label: "Thoughtful", color: "#3498db" },
+  { id: "minimal", label: "Minimal", color: "#7f8c8d" },
+];
+
 async function getSettings() {
   return new Promise((resolve) => {
     chrome.storage.local.get({
@@ -69,99 +84,39 @@ function createAIButton() {
     visibility: hidden;
   `;
 
-  const professionalBtn = document.createElement("button");
-  professionalBtn.innerHTML = "Professional";
-  professionalBtn.style.cssText = `
-    display: block;
-    width: 100%;
-    padding: 10px 14px;
-    background: white;
-    border: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    transition: background 0.2s;
-  `;
-  professionalBtn.onmouseover = () => professionalBtn.style.background = "#f0f4f8";
-  professionalBtn.onmouseout = () => professionalBtn.style.background = "white";
-  
-  const handleProfessionalClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    menu.style.display = "none";
-    menu.style.visibility = "hidden";
-    handleAIButtonClick("professional");
-  };
-  professionalBtn.onclick = handleProfessionalClick;
-  professionalBtn.onmousedown = handleProfessionalClick;
+  COMMENT_STYLES.forEach((style, index) => {
+    const btn = document.createElement("button");
+    btn.innerHTML = style.label;
+    btn.style.cssText = `
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      background: white;
+      border: none;
+      ${index > 0 ? 'border-top: 1px solid #f0f0f0;' : ''}
+      text-align: left;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: #333;
+      transition: background 0.2s;
+    `;
+    btn.onmouseover = () => btn.style.background = "#f0f4f8";
+    btn.onmouseout = () => btn.style.background = "white";
+    
+    const handleClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      menu.style.display = "none";
+      menu.style.visibility = "hidden";
+      handleAIButtonClick(style.id);
+    };
+    btn.onclick = handleClick;
+    btn.onmousedown = handleClick;
 
-  const friendlyBtn = document.createElement("button");
-  friendlyBtn.innerHTML = "Friendly";
-  friendlyBtn.style.cssText = `
-    display: block;
-    width: 100%;
-    padding: 10px 14px;
-    background: white;
-    border: none;
-    border-top: 1px solid #f0f0f0;
-    text-align: left;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    transition: background 0.2s;
-  `;
-  friendlyBtn.onmouseover = () => friendlyBtn.style.background = "#f0f4f8";
-  friendlyBtn.onmouseout = () => friendlyBtn.style.background = "white";
-  
-  const handleFriendlyClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    menu.style.display = "none";
-    menu.style.visibility = "hidden";
-    handleAIButtonClick("friendly");
-  };
-  friendlyBtn.onclick = handleFriendlyClick;
-  friendlyBtn.onmousedown = handleFriendlyClick;
-
-  menu.appendChild(professionalBtn);
-  menu.appendChild(friendlyBtn);
-
-  const collaborationBtn = document.createElement("button");
-  collaborationBtn.innerHTML = "Collaboration";
-  collaborationBtn.style.cssText = `
-    display: block;
-    width: 100%;
-    padding: 10px 14px;
-    background: white;
-    border: none;
-    border-top: 1px solid #f0f0f0;
-    text-align: left;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    color: #333;
-    transition: background 0.2s;
-  `;
-  collaborationBtn.onmouseover = () => collaborationBtn.style.background = "#f0f4f8";
-  collaborationBtn.onmouseout = () => collaborationBtn.style.background = "white";
-  
-  const handleCollaborationClick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    menu.style.display = "none";
-    menu.style.visibility = "hidden";
-    handleAIButtonClick("collaboration");
-  };
-  collaborationBtn.onclick = handleCollaborationClick;
-  collaborationBtn.onmousedown = handleCollaborationClick;
-  
-  menu.appendChild(collaborationBtn);
+    menu.appendChild(btn);
+  });
 
   let hoverTimeout;
   let menuVisible = false;
@@ -591,18 +546,11 @@ function showLoading(post, type) {
   const oldLoader = post.querySelector(".ai-loader");
   if (oldLoader) oldLoader.remove();
   
+  const style = COMMENT_STYLES.find(s => s.id === type);
+  const label = style ? style.label : "AI";
+  
   let loader = document.createElement("div");
   loader.className = "ai-loader";
-  let label;
-  if (type === "professional") {
-    label = "Professional";
-  } else if (type === "friendly") {
-    label = "Friendly";
-  } else if (type === "collaboration") {
-    label = "Collaboration";
-  } else {
-    label = "AI";
-  }
   loader.innerText = `Generating ${label} comment...`;
   post.appendChild(loader);
 }
@@ -627,20 +575,9 @@ function showComment(post, comment, type) {
   const container = document.createElement("div");
   container.className = "ai-result";
 
-  let label, color;
-  if (type === "professional") {
-    label = "Professional";
-    color = "#0a66c2";
-  } else if (type === "friendly") {
-    label = "Friendly";
-    color = "#057642";
-  } else if (type === "collaboration") {
-    label = "Collaboration";
-    color = "#8b5cf6";
-  } else {
-    label = "AI";
-    color = "#0a66c2";
-  }
+  const style = COMMENT_STYLES.find(s => s.id === type);
+  const label = style ? style.label : "AI";
+  const color = style ? style.color : "#0a66c2";
 
   const section = document.createElement("div");
   section.className = "ai-comment-section";

@@ -39,26 +39,24 @@ app.post("/generate", checkAuth, async (req, res) => {
   }
 
   const isLinkedIn = platform === "linkedin";
+  const postRef = isLinkedIn ? "LinkedIn post" : "tweet";
 
-  if (type === "professional") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE very concise professional comment (MAX 15-20 words). 
-    Focus on the core insight or news. 
-    Contribute one brief perspective. No fluff. 
-    ${languageInstruction} 
-    Return ONLY the comment text:\n\n${postText}`;
-  } else if (type === "friendly") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE short, human comment (MAX 15 words). 
-    Respond to the story with a quick, supportive observation. 
-    Keep it very punchy. 
-    ${languageInstruction} 
-    Return ONLY the comment text:\n\n${postText}`;
-  } else if (type === "collaboration") {
-    prompt = `Read this ${isLinkedIn ? 'LinkedIn post' : 'tweet'} and write ONE concise professional comment (MAX 20 words). 
-    Acknowledge a point and suggest a chat. 
-    Keep it brief and authentic. 
-    ${languageInstruction} 
-    Return ONLY the comment text:\n\n${postText}`;
-  }
+  const PROMPTS = {
+    professional: `Read this ${postRef} and write ONE very concise professional comment (MAX 15-20 words). Focus on the core insight or news. Contribute one brief perspective. No fluff. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    friendly: `Read this ${postRef} and write ONE short, human comment (MAX 15 words). Respond to the story with a quick, supportive observation. Keep it very punchy. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    collaboration: `Read this ${postRef} and write ONE concise professional comment (MAX 20 words). Acknowledge a point and suggest a chat. Keep it brief and authentic. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    insightful: `Read this ${postRef} and write ONE insightful comment (MAX 20 words). Identify a deeper trend, implication, or angle others might miss. Sound sharp but not arrogant. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    curious: `Read this ${postRef} and write ONE curious comment (MAX 20 words). Ask a thoughtful follow-up question that moves the conversation forward. Show genuine interest. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    supportive: `Read this ${postRef} and write ONE supportive comment (MAX 15 words). Offer genuine encouragement or appreciation. Be warm but not over-the-top. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    constructive: `Read this ${postRef} and write ONE constructive comment (MAX 20 words). Offer a respectful counterpoint or alternative perspective. Be polite and evidence-based. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    enthusiastic: `Read this ${postRef} and write ONE enthusiastic comment (MAX 15 words). React with genuine excitement and energy. Use an exclamation. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    witty: `Read this ${postRef} and write ONE witty comment (MAX 15 words). Make a clever observation or playful joke about the content. Keep it smart, not mean. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    empathetic: `Read this ${postRef} and write ONE empathetic comment (MAX 20 words). Connect with the human side of the post. Show you understand their experience. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    thoughtful: `Read this ${postRef} and write ONE thoughtful comment (MAX 20 words). Offer a reflective, balanced take. Consider nuance and acknowledge complexity. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+    minimal: `Read this ${postRef} and write ONE ultra-short comment (MAX 8 words). A quick reaction or one-liner. Punchy, memorable, stops the scroll. ${languageInstruction} Return ONLY the comment text:\n\n${postText}`,
+  };
+
+  prompt = PROMPTS[type];
 
   if (!prompt) {
     return res.status(400).json({ error: "Invalid type or platform" });
