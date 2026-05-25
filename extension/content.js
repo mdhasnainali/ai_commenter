@@ -225,68 +225,41 @@ function showButtonForCommentBox(target) {
   }
 }
 
-// ──────────────────────────── Modal ────────────────────────────
+// ──────────────────────────── Inline Editor ────────────────────────────
 
-function buildModalHTML(style, label) {
-  return `
-    <div class="ai-modal-header">
-      <div class="ai-modal-title">
-        <span>✨ ${label}</span>
-        <span class="style-badge" style="background:${style ? style.color : "#0a66c2"}">Prompt</span>
-      </div>
-      <button class="ai-modal-close">&times;</button>
-    </div>
-    <div class="ai-modal-body">
-      <label>Default Prompt <span class="optional">(editable)</span>:</label>
-      <textarea class="ai-modal-prompt" placeholder="Loading prompt template...">Loading...</textarea>
-
-      <div class="ai-modal-row">
-        <div class="ai-modal-sentences-group">
-          <label>Number of sentences:</label>
-          <input type="number" class="ai-modal-sentences" value="1" min="1" max="10">
-        </div>
-      </div>
-
-      <label>Custom Instructions <span class="optional">(optional)</span>:</label>
-      <textarea class="ai-modal-instructions" placeholder="e.g., Focus on the technical aspect, mention a specific framework..."></textarea>
-    </div>
-    <div class="ai-modal-footer">
-      <div class="ai-modal-footer-left">
-        <button class="ai-modal-save">Save as Default</button>
-        <button class="ai-modal-reset">Reset</button>
-        <span class="ai-modal-saved-msg">Saved</span>
-      </div>
-      <div class="ai-modal-footer-right">
-        <div class="ai-modal-loading">
-          <div class="ai-modal-spinner"></div>
-          Generating...
-        </div>
-        <button class="ai-modal-cancel">Cancel</button>
-        <button class="ai-modal-generate">Generate</button>
-      </div>
-    </div>`;
-}
-
-function showCustomInstructionsModal(postText, type, language) {
+function showCustomInstructionsInline(postText, type, language) {
   const style = getStyle(type);
   const label = style ? style.label : type;
+  const color = style ? style.color : "#0a66c2";
+  let post = currentPost;
 
-  const overlay = document.createElement("div");
-  overlay.className = "ai-modal-overlay";
-  const modal = document.createElement("div");
-  modal.className = "ai-modal";
-  modal.innerHTML = buildModalHTML(style, label);
-  overlay.appendChild(modal);
-  document.body.appendChild(overlay);
+  if (!post || !document.body.contains(post)) {
+    post = currentCommentBox ? findPostElement(currentCommentBox) : null;
+    if (post) currentPost = post;
+  }
+  if (!post || !document.body.contains(post)) return;
 
-  const promptTextarea = modal.querySelector(".ai-modal-prompt");
-  const sentencesInput = modal.querySelector(".ai-modal-sentences");
-  const instructionsTextarea = modal.querySelector(".ai-modal-instructions");
-  const loadingEl = modal.querySelector(".ai-modal-loading");
-  const savedMsg = modal.querySelector(".ai-modal-saved-msg");
+  const old = post.querySelector(".ai-result");
+  if (old) old.remove();
 
-  const close = () => {
-    overlay.remove();
+  const container = document.createElement("div");
+  container.className = "ai-result";
+
+  const section = document.createElement("div");
+  section.className = "ai-comment-section editor-section";
+
+  const header = document.createElement("div");
+  header.className = "ai-section-header";
+  header.style.cssText = `display:flex;align-items:center;justify-content:space-between;color:${color};`;
+
+  const titleSpan = document.createElement("strong");
+  titleSpan.textContent = `✨ ${label}`;
+
+  const closeBtn = document.createElement("button");
+  closeBtn.style.cssText = "background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;color:#999;font-size:18px;line-height:1;";
+  closeBtn.textContent = "✕";
+  closeBtn.onclick = () => {
+    container.remove();
     if (!aiButton || !document.body.contains(aiButton)) {
       aiButton = createAIButton();
       document.body.appendChild(aiButton);
@@ -294,10 +267,110 @@ function showCustomInstructionsModal(postText, type, language) {
     }
   };
 
-  modal.querySelector(".ai-modal-close").onclick = close;
-  modal.querySelector(".ai-modal-cancel").onclick = close;
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  header.appendChild(titleSpan);
+  header.appendChild(closeBtn);
+  section.appendChild(header);
 
+  const box = document.createElement("div");
+  box.className = "ai-comment-box";
+  box.style.cssText = "background:white;border:1px solid #e0e0e0;margin-bottom:0;";
+
+  const promptLabel = document.createElement("div");
+  promptLabel.style.cssText = "font-size:13px;font-weight:600;color:#333;margin-bottom:6px;";
+  promptLabel.innerHTML = 'Default Prompt <span style="font-weight:400;color:#999;">(editable)</span>:';
+
+  const promptTextarea = document.createElement("textarea");
+  promptTextarea.className = "ai-modal-prompt";
+  promptTextarea.style.cssText = "width:100%;min-height:90px;padding:10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;font-family:SFMono-Regular,Consolas,monospace;line-height:1.5;resize:vertical;box-sizing:border-box;margin-bottom:12px;background:#fafafa;color:#333;";
+  promptTextarea.placeholder = "Loading prompt template...";
+  promptTextarea.value = "Loading...";
+
+  const row = document.createElement("div");
+  row.style.cssText = "display:flex;gap:16px;margin-bottom:12px;align-items:flex-start;";
+
+  const sentencesGroup = document.createElement("div");
+  sentencesGroup.style.cssText = "flex:0 0 140px;";
+
+  const sentencesLabel = document.createElement("div");
+  sentencesLabel.style.cssText = "font-size:13px;font-weight:600;color:#333;margin-bottom:6px;";
+  sentencesLabel.textContent = "Number of sentences:";
+
+  const sentencesInput = document.createElement("input");
+  sentencesInput.type = "number";
+  sentencesInput.className = "ai-modal-sentences";
+  sentencesInput.style.cssText = "width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:14px;box-sizing:border-box;";
+  sentencesInput.value = "1";
+  sentencesInput.min = "1";
+  sentencesInput.max = "10";
+
+  sentencesGroup.appendChild(sentencesLabel);
+  sentencesGroup.appendChild(sentencesInput);
+  row.appendChild(sentencesGroup);
+
+  const instructionsLabel = document.createElement("div");
+  instructionsLabel.style.cssText = "font-size:13px;font-weight:600;color:#333;margin-bottom:6px;";
+  instructionsLabel.innerHTML = 'Custom Instructions <span style="font-weight:400;color:#999;">(optional)</span>:';
+
+  const instructionsTextarea = document.createElement("textarea");
+  instructionsTextarea.className = "ai-modal-instructions";
+  instructionsTextarea.style.cssText = "width:100%;min-height:60px;padding:10px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;margin-bottom:4px;";
+  instructionsTextarea.placeholder = "e.g., Focus on the technical aspect, mention a specific framework...";
+
+  const savedMsg = document.createElement("span");
+  savedMsg.style.cssText = "font-size:12px;color:#057642;opacity:0;transition:opacity 0.3s;";
+  savedMsg.textContent = "Saved";
+
+  box.appendChild(promptLabel);
+  box.appendChild(promptTextarea);
+  box.appendChild(row);
+  box.appendChild(instructionsLabel);
+  box.appendChild(instructionsTextarea);
+
+  const footer = document.createElement("div");
+  footer.style.cssText = "display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #eee;";
+
+  const footerLeft = document.createElement("div");
+  footerLeft.style.cssText = "display:flex;align-items:center;gap:8px;";
+
+  const saveBtn = document.createElement("button");
+  saveBtn.style.cssText = "padding:7px 12px;background:white;color:#0a66c2;border:1px solid #0a66c2;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;";
+  saveBtn.textContent = "Save as Default";
+
+  const resetBtn = document.createElement("button");
+  resetBtn.style.cssText = "padding:7px 12px;background:white;color:#999;border:1px solid #d0d0d0;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;";
+  resetBtn.textContent = "Reset";
+
+  footerLeft.appendChild(saveBtn);
+  footerLeft.appendChild(resetBtn);
+  footerLeft.appendChild(savedMsg);
+
+  const footerRight = document.createElement("div");
+  footerRight.style.cssText = "display:flex;align-items:center;gap:10px;";
+
+  const loadingEl = document.createElement("div");
+  loadingEl.style.cssText = "display:none;align-items:center;gap:6px;color:#666;font-size:13px;";
+  loadingEl.innerHTML = '<div style="width:14px;height:14px;border:2px solid #e0e0e0;border-top-color:#0a66c2;border-radius:50%;animation:aiSpin 0.6s linear infinite;"></div> Generating...';
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.style.cssText = "padding:7px 16px;background:white;color:#333;border:1px solid #d0d0d0;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;";
+  cancelBtn.textContent = "Cancel";
+
+  const generateBtn = document.createElement("button");
+  generateBtn.style.cssText = "padding:7px 16px;background:#0a66c2;color:white;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;";
+  generateBtn.textContent = "Generate";
+
+  footerRight.appendChild(loadingEl);
+  footerRight.appendChild(cancelBtn);
+  footerRight.appendChild(generateBtn);
+
+  footer.appendChild(footerLeft);
+  footer.appendChild(footerRight);
+  box.appendChild(footer);
+  section.appendChild(box);
+  container.appendChild(section);
+  post.appendChild(container);
+
+  // Load prompt template
   const STORAGE_KEY = `saved_prompt_${type}`;
   chrome.storage.local.get([STORAGE_KEY], (result) => {
     if (result[STORAGE_KEY]) {
@@ -308,45 +381,53 @@ function showCustomInstructionsModal(postText, type, language) {
     }
   });
 
-  modal.querySelector(".ai-modal-save").onclick = () => {
+  saveBtn.onclick = () => {
     chrome.storage.local.set({ [STORAGE_KEY]: promptTextarea.value }, () => {
-      savedMsg.classList.add("visible");
-      setTimeout(() => savedMsg.classList.remove("visible"), 1500);
+      savedMsg.style.opacity = "1";
+      setTimeout(() => { savedMsg.style.opacity = "0"; }, 1500);
     });
   };
 
-  modal.querySelector(".ai-modal-reset").onclick = () => {
+  resetBtn.onclick = () => {
     chrome.storage.local.remove(STORAGE_KEY, () => {
       const tpl = PROMPT_TEMPLATES[type];
       promptTextarea.value = tpl ? tpl.text : `Read this {postRef} and write a comment in ${label.toLowerCase()} style. {languageInstruction} Return ONLY the comment text:\n\n{postText}`;
       savedMsg.textContent = "Reset";
-      savedMsg.classList.add("visible");
-      setTimeout(() => { savedMsg.classList.remove("visible"); savedMsg.textContent = "Saved"; }, 1500);
+      savedMsg.style.opacity = "1";
+      setTimeout(() => { savedMsg.style.opacity = "0"; savedMsg.textContent = "Saved"; }, 1500);
     });
   };
 
-  modal.querySelector(".ai-modal-generate").onclick = async () => {
-    const generateBtn = modal.querySelector(".ai-modal-generate");
+  cancelBtn.onclick = () => {
+    container.remove();
+    if (!aiButton || !document.body.contains(aiButton)) {
+      aiButton = createAIButton();
+      document.body.appendChild(aiButton);
+      if (currentCommentBox) positionButton(currentCommentBox, aiButton);
+    }
+  };
+
+  generateBtn.onclick = async () => {
     generateBtn.disabled = true;
-    loadingEl.classList.add("active");
+    loadingEl.style.display = "flex";
 
     const promptText = promptTextarea.value;
     const numSentences = parseInt(sentencesInput.value, 10) || 1;
     const customInstructions = instructionsTextarea.value.trim();
-    close();
 
-    showLoading(currentPost, type);
+    container.remove();
+    showLoading(post, type);
     try {
       const comment = await fetchComment(postText, type, language, promptText, customInstructions, numSentences);
-      showComment(currentPost, comment, type);
+      showComment(post, comment, type);
     } catch (err) {
-      const oldLoader = currentPost.querySelector(".ai-loader");
+      const oldLoader = post.querySelector(".ai-loader");
       if (oldLoader) oldLoader.remove();
       const errorDiv = document.createElement("div");
       errorDiv.className = "ai-loader";
       errorDiv.style.cssText = "border-left:4px solid #d32f2f;color:#d32f2f;";
       errorDiv.textContent = err.message;
-      currentPost.appendChild(errorDiv);
+      post.appendChild(errorDiv);
     }
   };
 }
@@ -359,12 +440,22 @@ async function handleStyleSelected(type) {
     aiButton = null;
   }
   if (!currentPost && currentCommentBox) currentPost = findPostElement(currentCommentBox);
-  if (!currentPost) { alert("No post found. Please click on a comment box within a post."); return; }
 
-  const postText = getPostText(currentPost);
-  if (!postText || postText.length < 10) { alert("No text found in this post."); return; }
+  const postText = currentPost ? getPostText(currentPost) : "";
+  if (!postText || postText.length < 10) {
+    alert("No post text found. Click on a comment box within a post first.");
+    return;
+  }
 
-  showCustomInstructionsModal(postText, type, detectLanguage(postText));
+  if (!currentPost || !document.body.contains(currentPost)) {
+    currentPost = currentCommentBox ? findPostElement(currentCommentBox) : null;
+  }
+  if (!currentPost || !document.body.contains(currentPost)) {
+    alert("Post element not found. Try clicking on the comment box again.");
+    return;
+  }
+
+  showCustomInstructionsInline(postText, type, detectLanguage(postText));
 }
 
 async function fetchComment(postText, type, language = "en", promptText = null, customInstructions = null, numSentences = 1) {
