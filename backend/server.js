@@ -42,7 +42,7 @@ app.post("/generate", checkAuth, async (req, res) => {
     platform = "linkedin",
     prompt: userPrompt,
     customInstructions,
-    numSentences = 1,
+    numSentences = 2,
   } = req.body;
 
   const n = Math.max(1, parseInt(numSentences, 10) || 1);

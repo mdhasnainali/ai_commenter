@@ -299,7 +299,7 @@ function showCustomInstructionsInline(postText, type, language) {
   sentencesInput.type = "number";
   sentencesInput.className = "ai-modal-sentences";
   sentencesInput.style.cssText = "width:100%;padding:8px 10px;border:1px solid #d0d0d0;border-radius:6px;font-size:14px;box-sizing:border-box;";
-  sentencesInput.value = "1";
+  sentencesInput.value = "2";
   sentencesInput.min = "1";
   sentencesInput.max = "10";
 
