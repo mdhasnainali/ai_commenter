@@ -419,7 +419,7 @@ function showCustomInstructionsInline(postText, type, language) {
     showLoading(post, type);
     try {
       const comment = await fetchComment(postText, type, language, promptText, customInstructions, numSentences);
-      showComment(post, comment, type);
+      showComment(post, comment, type, promptText, customInstructions, numSentences);
     } catch (err) {
       const oldLoader = post.querySelector(".ai-loader");
       if (oldLoader) oldLoader.remove();
@@ -492,7 +492,7 @@ function showLoading(post, type) {
   post.appendChild(loader);
 }
 
-function showComment(post, comment, type) {
+function showComment(post, comment, type, promptText, customInstructions, numSentences) {
   const old = post.querySelector(".ai-result");
   if (old) old.remove();
   const oldLoader = post.querySelector(".ai-loader");
@@ -540,8 +540,8 @@ function showComment(post, comment, type) {
     container.remove();
     showLoading(post, type);
     const postText = getPostText(post);
-    fetchComment(postText, type, detectLanguage(postText))
-      .then(newComment => showComment(post, newComment, type))
+    fetchComment(postText, type, detectLanguage(postText), promptText, customInstructions, numSentences)
+      .then(newComment => showComment(post, newComment, type, promptText, customInstructions, numSentences))
       .catch(() => { const loader = post.querySelector(".ai-loader"); if (loader) loader.remove(); });
   };
 

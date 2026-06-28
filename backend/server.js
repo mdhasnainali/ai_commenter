@@ -6,7 +6,7 @@ import OpenAI from "openai";
 dotenv.config();
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 const API_SECRET = process.env.API_SECRET;
@@ -16,7 +16,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Middleware to check API key
 const checkAuth = (req, res, next) => {
   const authHeader = req.headers["x-api-key"];
   if (!authHeader || authHeader !== API_SECRET) {
@@ -25,70 +24,78 @@ const checkAuth = (req, res, next) => {
   next();
 };
 
-const SYSTEM_PROMPT = `You are a savvy professional who writes natural, conversational comments. 
-Avoid all AI cliches (e.g., "delve," "unlock," "dive in," "I'm excited to"). 
-Don't be overly formal or perfectly polished. Use contractions (it's, don't). 
-Focus your comment on the topic, data, or news shared in the post rather than praising the author's achievement. 
-Respond like a busy but thoughtful human contributing to a discussion. 
-Keep comments extremely concise—aim for ONE sentence.
-Never sound like a bot or a customer service agent. 
+const BASE_SYSTEM_PROMPT = `You are a savvy professional AI engineer who writes natural, conversational comments.
+Avoid all AI cliches (e.g., "delve," "unlock," "dive in," "I'm excited to").
+Don't be overly formal or perfectly polished. Use contractions (it's, don't).
+Focus your comment on the topic, data, or news shared in the post.
+Respond like a busy but thoughtful human contributing to a discussion.
+Never sound like a bot or a customer service agent.
 Return ONLY the comment text.`;
 
 app.post("/generate", checkAuth, async (req, res) => {
-  const { postText, type, language, platform = "linkedin", prompt: userPrompt, customInstructions, numSentences = 1 } = req.body;
+  const {
+    postText,
+    type,
+    language,
+    platform = "linkedin",
+    prompt: userPrompt,
+    customInstructions,
+    numSentences = 1,
+  } = req.body;
 
-  let maxTokens = 60 + (parseInt(numSentences, 10) - 1) * 40;
+  const n = Math.max(1, parseInt(numSentences, 10) || 1);
+  const maxTokens = 80 + (n - 1) * 60;
+  const sentenceWord = n === 1 ? "ONE" : String(n);
 
-  const sentenceWord = parseInt(numSentences, 10) === 1 ? "ONE" : numSentences;
-
-  let languageInstruction = `Respond in the same language as the post provided.`;
+  let languageInstruction;
   if (language === "bn") {
-    languageInstruction = `Write the comment entirely in Bengali (বাংলা) using natural, conversational phrasing. Keep it to ${sentenceWord} short sentence${numSentences > 1 ? "s" : ""}.`;
+    languageInstruction = `Write the comment entirely in Bengali (বাংলা) using natural, conversational phrasing. Keep it to ${sentenceWord} short sentence${n > 1 ? "s" : ""}.`;
   } else if (language === "en") {
-    languageInstruction = `Write the comment entirely in English. Keep it to ${sentenceWord} short sentence${numSentences > 1 ? "s" : ""}.`;
+    languageInstruction = `Write the comment entirely in English. Keep it to ${sentenceWord} short sentence${n > 1 ? "s" : ""}.`;
+  } else {
+    languageInstruction = `Respond in the same language as the post. Keep it to ${sentenceWord} short sentence${n > 1 ? "s" : ""}.`;
   }
 
   const isLinkedIn = platform === "linkedin";
   const postRef = isLinkedIn ? "LinkedIn post" : "tweet";
 
-  let prompt;
-  if (userPrompt) {
-    prompt = userPrompt
-      .replace(/{postRef}/g, postRef)
-      .replace(/{languageInstruction}/g, languageInstruction)
-      .replace(/{postText}/g, postText);
-  } else {
+  if (!userPrompt) {
     return res.status(400).json({ error: "No prompt provided" });
   }
 
-  if (customInstructions) {
-    prompt += `\n\nAdditional instructions from the user:\n${customInstructions}`;
+  // Replace placeholders except {postText} first so we can inject custom instructions before it
+  let prompt = userPrompt
+    .replace(/{postRef}/g, postRef)
+    .replace(/{languageInstruction}/g, languageInstruction);
+
+  // Inject custom instructions before the post text so the model sees constraints first
+  if (customInstructions && customInstructions.trim()) {
+    prompt = prompt.replace(
+      /{postText}/g,
+      `Additional constraints for this comment:\n${customInstructions.trim()}\n\n{postText}`,
+    );
   }
 
-  let systemContent = SYSTEM_PROMPT;
-  if (numSentences > 1) {
-    systemContent = systemContent.replace("ONE sentence", `${numSentences} sentences`);
-  }
+  prompt = prompt.replace(/{postText}/g, postText);
+
+  const systemContent = `${BASE_SYSTEM_PROMPT}\nKeep the comment to ${sentenceWord} sentence${n > 1 ? "s" : ""}.`;
 
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemContent },
-        { role: "user", content: prompt }
+        { role: "user", content: prompt },
       ],
       max_tokens: maxTokens,
-      temperature: 0.7
+      temperature: 0.7,
     });
 
     let comment = completion.choices[0].message.content.trim();
-    
-    comment = comment.replace(/\*\*Option \d+.*?\*\*/gi, '');
-    comment = comment.replace(/^>\s*/gm, '');
-    comment = comment.replace(/\*\*/g, '');
-    if (numSentences <= 1) {
-      comment = comment.split('\n')[0];
-    }
+    comment = comment.replace(/\*\*Option \d+.*?\*\*/gi, "");
+    comment = comment.replace(/^>\s*/gm, "");
+    comment = comment.replace(/\*\*/g, "");
+    if (n <= 1) comment = comment.split("\n")[0];
     comment = comment.trim();
 
     res.json({ comment });
